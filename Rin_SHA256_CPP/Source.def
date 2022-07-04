@@ -1,0 +1,3 @@
+LIBRARY
+	EXPORTS
+    compute @1

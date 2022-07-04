@@ -1,13 +1,17 @@
-﻿using System.Runtime.Intrinsics;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Timers;
 using Rin;
 
+var r=new SHA256_CPP().RunTest();
+
 var result = new SHA256().RunTest();
 Console.WriteLine(result);
-if (result != 0)
-    throw new Exception();
+//if (result != 0)
+  //  throw new Exception();
 
 new Bentimark().Run();
 class Bentimark
@@ -17,18 +21,19 @@ class Bentimark
     public void Run()
     {
 
+
         Task.Run(() =>
         {
             Parallel.For(0, 16, i =>
             { 
-         SHA256 sha256 = new SHA256();
+         SHA256_CPP sha256 = new SHA256_CPP();
        //     System.Security.Cryptography.SHA256 sha256 = System.Security.Cryptography.SHA256.Create();
 
             byte[] input = Encoding.ASCII.GetBytes( "rintya!!");
 
             while (true)
             {
-                var tmp = sha256.ComputeHash2(input);
+                var tmp = sha256.ComputeHash(input);
                 cnts[i]++;
                 input[0]++;
             }
@@ -56,8 +61,70 @@ class Bentimark
 
 namespace Rin
 {
-  unsafe  public class SHA256
+    unsafe public class SHA256_CPP
     {
+        [DllImport(@"..\..\..\..\x64\Release\Rin_SHA256_CPP.dll", EntryPoint = "compute")]
+        public static  extern int compute(byte* input, int lng, uint* rtn);
+
+        uint[] rtna = new uint[8];
+        [SkipLocalsInit]
+
+        public SHA256_CPP ComputeHash(byte[] input)
+        {
+            byte* ptr=stackalloc byte[input.Length];
+           for (int i = 0; i < input.Length; i++)
+               ptr[i] = input[i];
+            uint* rtn = stackalloc uint[8];
+
+                compute(ptr, input.Length, rtn);
+ for (int i = 0; i < rtna.Length; i++)
+               rtna[i] = rtn[i];
+            return this;
+        }
+
+            public int RunTest()
+        {
+            System.Security.Cryptography.SHA256 SSHA256 = System.Security.Cryptography.SHA256.Create();
+            SHA256 RSHA256 = new SHA256();
+            int rtn = 0;
+            var input = RSHA256.ConvertToInput("rintya!!");
+
+            for (int i = 0; i < 256; i++)
+            {
+                var ans = SSHA256.ComputeHash(input);
+                Console.WriteLine("test " + i);
+                var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
+
+                uint[] rtna = new uint[8];
+                fixed(byte* ptr=input)
+                fixed(uint* rtnp= rtna)
+                {
+                     compute(ptr, input.Length, rtnp);
+
+                }
+
+            var rans=    String.Join("", rtna.ToArray().Select(x => x.ToString("x").PadLeft(8, '0')));
+
+                Console.WriteLine("Microsoft " + mans);
+                Console.WriteLine("Rintya    " + rans);
+                Console.WriteLine();
+
+                if (mans != rans)
+                {
+                    Console.WriteLine("error");
+                    rtn++;
+                }
+
+                input[0]++;
+            }
+
+            return rtn;
+        }
+
+    }
+    unsafe  public class SHA256
+    {
+
 
         public int RunTest()
         {
@@ -71,7 +138,7 @@ namespace Rin
                 var ans=SSHA256.ComputeHash(input);
                 Console.WriteLine("test "+i);
                 var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
-                var rans = RSHA256.ComputeHash2(input).ToString();
+                var rans = RSHA256.ComputeHash(input).ToString();
                 Console.WriteLine( "Microsoft " + mans);
                 Console.WriteLine("Rintya    " + rans);
                 Console.WriteLine();
@@ -98,6 +165,7 @@ namespace Rin
         IntPtr tmp3;
         IntPtr tmp4;
 
+        uint* rtn = null;
         uint* K = null;
         public SHA256()
         {
@@ -178,6 +246,9 @@ namespace Rin
         ~SHA256()
         {
             System.Runtime.InteropServices.Marshal.FreeCoTaskMem(tmp);
+            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(tmp2);
+            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(tmp3);
+            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(tmp4);
         }
 
 
@@ -199,10 +270,6 @@ namespace Rin
             return this;
         }
 
-        Vector256<uint> H = Vector256.Create(0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19);
-        Vector256<uint> shift0 = Vector256.Create(2, 13, 22, 0, 6, 11, 25, 0).AsUInt32();
-        Vector256<uint> shift1 = Vector256.Create(32 - 2, 32 - 13, 32 - 22, 32 - 0, 32 - 6, 32 - 11, 32 - 25, 32 - 0).AsUInt32();
-        Vector256<uint> maskSigma01 = Vector256.Create(1, 0, 0, 0, 1, 0, 0, 0).AsUInt32();
 
     public    struct values
         {
@@ -221,172 +288,96 @@ namespace Rin
             }
         }
 
-        uint rotr(uint x, int n) => ((x >> n) | (x << (32 - n)));
-        uint shr(uint x, int n) => (x >> n);
-        uint ch(uint x, uint y, uint z) => (x & y) ^ (~x & z);
-        uint maj(uint x, uint y, uint z) => ((x & y) ^ (x & z) ^ (y & z));
-        uint upperSigma0(uint x) => (rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22));
-        uint upperSigma1(uint x) => rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
-        uint lowerSigma0(uint x) => (rotr(x, 7) ^ rotr(x, 18) ^ shr(x, 3));
-        uint lowerSigma1(uint x) => rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10);
-
-
-        public SHA256 ComputeHash2(byte[] input)
-        {
-            uint* ah = stackalloc uint[8] {   0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
-            values* val = (values*)ah;
-     
-            Padding(input);
-            castToUint();
-
-            var W = mapW((uint*)_paded);
-
-            
-            for (int t = 0; t < 64; t++)
-            {
-
-                var ch0 = ch(val->a4, val->a5, val->a6);
-                var maj0 = maj(val->a0, val-> a1, val->a2);
-
-                var t1 = val->a7 + upperSigma1(val->a4) + ch(val->a4, val->a5, val->a6) + K[t] + W[t];
-                var t2 = upperSigma0(val->a0) + maj(val->a0, val->a1, val->a2);
-
-
-                val->a7 = val->a6;
-                val->a6 = val->a5;
-                val->a5 = val->a4;
-                val->a4 = val->a3 + t1;
-                val->a3 = val->a2;
-                val->a2 = val->a1;
-                val->a1 = val->a0;
-                val->a0 = t1 + t2;
-
-                //      Avx2.Store(ah + 1, Avx2.LoadVector256(ah));
-                //    ah[1] = t1 + t2;
-                //  ah[5] = ah[5] + t1;
-            }
-
-            Avx2.Store(Result, Avx2.Add(Avx.LoadVector256(ah ), H));
-            return this;
-        }
-
+        byte* _paded = null;
+        Vector256<byte> mask = Vector256.Create(3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12).AsByte();
+        Vector256<byte> zero = Vector256<byte>.Zero;
         public SHA256 ComputeHash(byte[] input)
         {
+            uint a0 = 0x6a09e667;
+            uint a1 = 0xbb67ae85;
+            uint a2 = 0x3c6ef372;
+            uint a3 = 0xa54ff53a;
+            uint a4 = 0x510e527f;
+            uint a5 = 0x9b05688c;
+            uint a6 = 0x1f83d9ab;
+            uint a7 = 0x5be0cd19;
+
+            if (input.Length + 8 >= 64)
+                throw new Exception();
+
+            Avx2.Store(_paded, zero);
+            Avx2.Store(_paded+32, zero);
+
+            for (int i = 0; i < input.Length; i++)
+                _paded[i] = input[i];
+
+            _paded[input.Length] = 0x80;
+
          
-            uint* ah = stackalloc uint[9] {0, 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
-            uint* ptr8 = stackalloc uint[8] { 0, 0, 0, 0, 0, 0, 0, 0 };
+           var size = input.Length * 8;
            
-            Padding(input);
-            castToUint();
+           _paded[64 - 4] = (byte)(size >> 24);
+           _paded[64 - 3] = (byte)(0xff & (size >> 16));
+           _paded[64 - 2] = (byte)(0xff & (size >> 8));
+           _paded[64 - 1] = (byte)(0xff & size);
 
-            var W = mapW((uint*)_paded);
+            Avx2.Store(_paded, Avx2.Shuffle(Avx2.LoadVector256(_paded), mask));
+            Avx2.Store(_paded + 32, Avx2.Shuffle(Avx2.LoadVector256(_paded + 32), mask));
 
-            for (int t = 0; t < 64; t++)
+       
+
+            var W = rtn;
+            for(int t=0;t<16;t++)
             {
-                uint ch(uint x, uint y, uint z) => (x & y) ^ (~x & z);
-                uint maj(uint x, uint y, uint z) => ((x & y) ^ (x & z) ^ (y & z));
+                W[t] = ((uint*)_paded)[t];
 
-                var ch0 = ch(ah[5], ah[6], ah[7]);
-                var maj0 = maj(ah[1], ah[2], ah[3]);
-                var tp = Avx2.Shuffle(Avx2.LoadVector256(ah + 1), 0x00);
-                var s0=Avx2.ShiftRightLogicalVariable(tp, shift0);
-                var s1 = Avx2.ShiftLeftLogicalVariable(tp, shift1);
-                var tp3 = Avx2.Or(s0,s1);
-                Avx2.Store(ptr8, tp3);
-                ptr8[0] = ptr8[0] ^ ptr8[1] ^ ptr8[2];
-                ptr8[4] = ptr8[4] ^ ptr8[5] ^ ptr8[6];
+                var t1 = a7 + (((a4 >> 6) | (a4 << (32 - 6))) ^ ((a4 >> 11) | (a4 << (32 - 11))) ^ ((a4 >> 25) | (a4 << (32 - 25)))) + ((a4 & a5) ^ (~a4 & a6)) + K[t] + W[t];
+                var t2 = (((a0 >> 2) | (a0 << (32 - 2))) ^ ((a0 >> 13) | (a0 << (32 - 13))) ^ ((a0 >> 22) | (a0 << (32 - 22)))) + ((a0 & a1) ^ (a0 & a2) ^ (a1 & a2));
 
-                var t1 = ah[8] + ptr8[4] + ch0 + K[t] + W[t]  ;
-                var t2 = ptr8[0] + maj0  ;
-                Avx2.Store(ah+1, Avx2.LoadVector256(ah));
-                ah[1] = t1 + t2;
-                ah[5] = ah[5] + t1;
+                a7 = a6;
+                a6 = a5;
+                a5 = a4;
+                a4 = a3 + t1;
+                a3 = a2;
+                a2 = a1;
+                a1 = a0;
+                a0 = t1 + t2;
+
+               
             }
-         
-            Avx2.Store(Result,Avx2.Add(Avx.LoadVector256(ah+1), H));
+
+            for (int t = 16; t < 64; t++)
+            {
+                var x0 = W[t - 2];
+                var x1 = W[t - 15];
+                W[t] = (((x1 >> 7) | (x1 << (32 - 7))) ^ ((x1 >> 18) | (x1 << (32 - 18))) ^ (x1 >> 3)) + (((x0 >> 17) | (x0 << (32 - 17))) ^ ((x0 >> 19) | (x0 << (32 - 19))) ^ (x0 >> 10)) + W[t - 16] + W[t - 7];
+                var t1 = a7 + (((a4 >> 6) | (a4 << (32 - 6))) ^ ((a4 >> 11) | (a4 << (32 - 11))) ^ ((a4 >> 25) | (a4 << (32 - 25)))) + ((a4 & a5) ^ (~a4 & a6)) + K[t] + W[t];
+                var t2 = (((a0 >> 2) | (a0 << (32 - 2))) ^ ((a0 >> 13) | (a0 << (32 - 13))) ^ ((a0 >> 22) | (a0 << (32 - 22)))) + ((a0 & a1) ^ (a0 & a2) ^ (a1 & a2));
+
+                a7 = a6;
+                a6 = a5;
+                a5 = a4;
+                a4 = a3 + t1;
+                a3 = a2;
+                a2 = a1;
+                a1 = a0;
+                a0 = t1 + t2;
+
+
+
+            }
+
+            Result[0] = a0 + 0x6a09e667;
+            Result[1] = a1 + 0xbb67ae85;
+            Result[2] = a2 + 0x3c6ef372;
+            Result[3] = a3 + 0xa54ff53a;
+            Result[4] = a4 + 0x510e527f;
+            Result[5] = a5 + 0x9b05688c;
+            Result[6] = a6 + 0x1f83d9ab;
+            Result[7] = a7 + 0x5be0cd19;
             return this;
         }
 
-        Vector256<int> maskw0 = Vector256.Create(0, 0, 0, 0, 13, 13, 13, 0);
-        Vector256<uint> maskw1 = Vector256.Create(7, 18, 3, 0, 17, 19, 10, 0u);
-        Vector256<uint> maskw2 = Vector256.Create(32 - 7, 32 - 18, 32 - 3, 32 - 0, 32 - 17, 32 - 19, 32 - 10, 32 - 0u);
-        Vector256<uint> maskw3 = Vector256.Create(-1, -1, 0, 0, -1, -1, 0, 0).AsUInt32();
-        uint* rtn = null;
-      
-        uint* mapW(uint* arr)
-        {
-           
-            uint* ptr = stackalloc uint[8];
-            for (int i = 0; i < 64; i++)
-            {
-                if (i < 16)
-                {
-                    rtn[i] = arr[i];
-                    continue;
-                }
 
-
-                var t = Avx2.GatherVector256(rtn + i-15, maskw0, 4);
-                var v1 = Avx2.ShiftRightLogicalVariable(t, maskw1);
-                var v2 = Avx2.ShiftLeftLogicalVariable(t, maskw2);
-                v2 = Avx2.And(v2, maskw3);
-
-                var r = Avx2.Or(v1, v2);
-
-                Avx2.Store(ptr, r);
-                var r0 = ptr[0] ^ ptr[1] ^ ptr[2];
-                var r6 = ptr[4] ^ ptr[5] ^ ptr[6];
-                var tmp = r6 + rtn[i - 7] + r0 + rtn[i - 16];
-                rtn[i] = tmp;
-            }
-            return rtn;
-        }
-
-        public void lowerSigma01(uint* ptr,int index)
-        {
-     
-
-        }
-         
-
-   //     uint* rtn = null;
-        Vector256<byte> mask = Vector256.Create(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12).AsByte();
-      void castToUint( )
-        {
-          var t=  Avx2.LoadVector256(_paded);
-            Avx2.Store(_paded, Avx2.Shuffle(t, mask));
-
-            t = Avx2.LoadVector256(_paded+32);
-            Avx2.Store(_paded+32, Avx2.Shuffle(t, mask));
- 
-        }
-
-        byte* _paded = null;
-        void Padding(byte[] arr)
-        {
-            if (arr.Length + 8 >= 64)
-                throw new Exception();
-
-
-            for (int i = 0; i < arr.Length; i++)
-                _paded[i] = arr[i];
-
-            _paded[arr.Length] = 0x80;
-
-            for (int i = arr.Length + 1; i < 64- 8; i++)
-                _paded[i] = 0;
-
-            _paded[64 - 8] = 0;
-            _paded[64 - 7] = 0;
-            _paded[64 - 6] = 0;
-            _paded[64 - 5] = 0;
-            var size = arr.Length * 8;
-
-            _paded[64 - 4] = (byte)(size >> 24);
-            _paded[64 - 3] = (byte)(0xff & (size >> 16));
-            _paded[64 - 2] = (byte)(0xff & (size >> 8));
-            _paded[64 - 1] = (byte)(0xff & size);
-        }
     }
 }
-//Console.WriteLine(String.Join("",tmp.Select(x=>x.ToString("x"))));
