@@ -6,14 +6,44 @@ using System.Text;
 using System.Timers;
 using Rin;
 
-var r=new SHA256_CPP().RunTest();
 
-var result = new SHA256().RunTest();
+var result =  RunTest();
 Console.WriteLine(result);
-//if (result != 0)
-  //  throw new Exception();
+ if (result != 0)
+    throw new Exception();
 
 new Bentimark().Run();
+
+
+  int RunTest()
+{
+    System.Security.Cryptography.SHA256 SSHA256 = System.Security.Cryptography.SHA256.Create();
+    SHA256 RSHA256 = new SHA256();
+    int rtn = 0;
+    var input = RSHA256.ConvertToInput("rintya!!");
+
+    for (int i = 0; i < 256; i++)
+    {
+        var ans = SSHA256.ComputeHash(input);
+        Console.WriteLine("test " + i);
+        var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
+        var rans = RSHA256.ComputeHash(input).ToString();
+        Console.WriteLine("Microsoft " + mans);
+        Console.WriteLine("Rintya    " + rans);
+        Console.WriteLine();
+
+        if (mans != rans)
+        {
+            Console.WriteLine("error");
+            rtn++;
+        }
+
+        input[0]++;
+    }
+
+    return rtn;
+}
+
 class Bentimark
 {
     int[] cnts = new int[16];
@@ -26,8 +56,8 @@ class Bentimark
         {
             Parallel.For(0, 16, i =>
             { 
-         SHA256_CPP sha256 = new SHA256_CPP();
-       //     System.Security.Cryptography.SHA256 sha256 = System.Security.Cryptography.SHA256.Create();
+        SHA256 　sha256 = new SHA256();
+        //   System.Security.Cryptography.SHA256 sha256 = System.Security.Cryptography.SHA256.Create();
 
             byte[] input = Encoding.ASCII.GetBytes( "rintya!!");
 
@@ -60,101 +90,12 @@ class Bentimark
  
 
 namespace Rin
-{
-    unsafe public class SHA256_CPP
-    {
-        [DllImport(@"..\..\..\..\x64\Release\Rin_SHA256_CPP.dll", EntryPoint = "compute")]
-        public static  extern int compute(byte* input, int lng, uint* rtn);
-
-        uint[] rtna = new uint[8];
-        [SkipLocalsInit]
-
-        public SHA256_CPP ComputeHash(byte[] input)
-        {
-            byte* ptr=stackalloc byte[input.Length];
-           for (int i = 0; i < input.Length; i++)
-               ptr[i] = input[i];
-            uint* rtn = stackalloc uint[8];
-
-                compute(ptr, input.Length, rtn);
- for (int i = 0; i < rtna.Length; i++)
-               rtna[i] = rtn[i];
-            return this;
-        }
-
-            public int RunTest()
-        {
-            System.Security.Cryptography.SHA256 SSHA256 = System.Security.Cryptography.SHA256.Create();
-            SHA256 RSHA256 = new SHA256();
-            int rtn = 0;
-            var input = RSHA256.ConvertToInput("rintya!!");
-
-            for (int i = 0; i < 256; i++)
-            {
-                var ans = SSHA256.ComputeHash(input);
-                Console.WriteLine("test " + i);
-                var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
-
-                uint[] rtna = new uint[8];
-                fixed(byte* ptr=input)
-                fixed(uint* rtnp= rtna)
-                {
-                     compute(ptr, input.Length, rtnp);
-
-                }
-
-            var rans=    String.Join("", rtna.ToArray().Select(x => x.ToString("x").PadLeft(8, '0')));
-
-                Console.WriteLine("Microsoft " + mans);
-                Console.WriteLine("Rintya    " + rans);
-                Console.WriteLine();
-
-                if (mans != rans)
-                {
-                    Console.WriteLine("error");
-                    rtn++;
-                }
-
-                input[0]++;
-            }
-
-            return rtn;
-        }
-
-    }
+{ 
     unsafe  public class SHA256
     {
 
 
-        public int RunTest()
-        {
-            System.Security.Cryptography.SHA256 SSHA256 = System.Security.Cryptography.SHA256.Create();
-            SHA256 RSHA256 = new SHA256();
-            int rtn = 0;
-            var input = RSHA256.ConvertToInput("rintya!!");
-
-            for(int i=0;i<256;i++)
-            {
-                var ans=SSHA256.ComputeHash(input);
-                Console.WriteLine("test "+i);
-                var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
-                var rans = RSHA256.ComputeHash(input).ToString();
-                Console.WriteLine( "Microsoft " + mans);
-                Console.WriteLine("Rintya    " + rans);
-                Console.WriteLine();
-
-                if (mans != rans)
-                {
-                    Console.WriteLine("error");
-                    rtn++;
-                }
-
-                input[0]++;
-            }
-
-            return rtn;
-        }
-
+       
         public string ToString()
         {
             return String.Join("",new Span<uint>( this.Result,8) .ToArray() .Select(x => x.ToString("x").PadLeft(8, '0')));

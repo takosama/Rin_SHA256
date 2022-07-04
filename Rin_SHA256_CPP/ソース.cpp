@@ -79,15 +79,16 @@ extern "C" int __stdcall compute(uint_fast8_t* input, int lng,uint_fast32_t* rtn
      
     auto W =(uint_fast32_t*) malloc(sizeof( uint_fast32_t)*64);
     auto _padded = (uint_fast8_t*)malloc(sizeof(uint_fast8_t) * 64);
-
-       uint_fast32_t   a0 = 0x6a09e667;
-       uint_fast32_t   a1 = 0xbb67ae85; 
-       uint_fast32_t   a2 = 0x3c6ef372;
-        uint_fast32_t  a3 = 0xa54ff53a;
-       uint_fast32_t   a4 = 0x510e527f;
-       uint_fast32_t   a5 = 0x9b05688c;
-       uint_fast32_t   a6 = 0x1f83d9ab;
-       uint_fast32_t   a7 = 0x5be0cd19;
+    uint_fast32_t* pa = (uint_fast32_t*)malloc(sizeof(uint_fast32_t) * 9);
+    auto a = pa + 1;
+         a[0] = 0x6a09e667;
+         a[1] = 0xbb67ae85; 
+         a[2] = 0x3c6ef372;
+         a[3] = 0xa54ff53a;
+         a[4] = 0x510e527f;
+         a[5] = 0x9b05688c;
+         a[6] = 0x1f83d9ab;
+         a[7] = 0x5be0cd19;
 
        if (lng + 8 >= 64)
            return -1;
@@ -115,17 +116,20 @@ extern "C" int __stdcall compute(uint_fast8_t* input, int lng,uint_fast32_t* rtn
         {
             W[t] = ((uint_fast32_t*)_padded)[t];
 
-            uint_fast32_t t1 = a7 + (((a4 >> 6) | (a4 << (32 - 6))) ^ ((a4 >> 11) | (a4 << (32 - 11))) ^ ((a4 >> 25) | (a4 << (32 - 25)))) + ((a4 & a5) ^ (~a4 & a6)) + K[t] + W[t];
-            uint_fast32_t t2 = (((a0 >> 2) | (a0 << (32 - 2))) ^ ((a0 >> 13) | (a0 << (32 - 13))) ^ ((a0 >> 22) | (a0 << (32 - 22)))) + ((a0 & a1) ^ (a0 & a2) ^ (a1 & a2));
+            uint_fast32_t t1 = a[7] + (((a[4] >> 6) | (a[4] << (32 - 6))) ^ ((a[4] >> 11) | (a[4] << (32 - 11))) ^ ((a[4] >> 25) | (a[4] << (32 - 25)))) + ((a[4 ]& a[5]) ^ (~a[4] & a[6])) + K[t] + W[t];
+            uint_fast32_t t2 = (((a[0] >> 2) | (a[0] << (32 - 2))) ^ ((a[0] >> 13) | (a[0] << (32 - 13))) ^ ((a[0] >> 22) | (a[0] << (32 - 22)))) + ((a[0] & a[1]) ^ (a[0] & a[2]) ^ (a[1] & a[2]));
 
-            a7 = a6;
-            a6 = a5;
-            a5 = a4;
-            a4 = a3 + t1;
-            a3 = a2;
-            a2 = a1;
-            a1 = a0;
-            a0 = t1 + t2;
+
+            _mm256_storeu_epi32(pa + 1, _mm256_loadu_epi32 (pa));
+
+          //  a[7] = a[6];
+           // a[6] = a[5];
+            //a[5] = a[4];
+            a[4] = a[4] + t1;
+           // a[3] = a[2];
+           // a[2] = a[1];
+           // a[1] = a[0];
+            a[0] = t1 + t2;
         }
          
         for (int t = 16; t < 64; t++)
@@ -133,28 +137,32 @@ extern "C" int __stdcall compute(uint_fast8_t* input, int lng,uint_fast32_t* rtn
         uint_fast32_t x0 = W[t - 2];
         uint_fast32_t x1 = W[t - 15];
         W[t] = (((x1 >> 7) | (x1 << (32 - 7))) ^ ((x1 >> 18) | (x1 << (32 - 18))) ^ (x1 >> 3)) + (((x0 >> 17) | (x0 << (32 - 17))) ^ ((x0 >> 19) | (x0 << (32 - 19))) ^ (x0 >> 10)) + W[t - 16] + W[t - 7];
-        uint_fast32_t t1 = a7 + (((a4 >> 6) | (a4 << (32 - 6))) ^ ((a4 >> 11) | (a4 << (32 - 11))) ^ ((a4 >> 25) | (a4 << (32 - 25)))) + ((a4 & a5) ^ (~a4 & a6)) + K[t] + W[t];
-        uint_fast32_t t2 = (((a0 >> 2) | (a0 << (32 - 2))) ^ ((a0 >> 13) | (a0 << (32 - 13))) ^ ((a0 >> 22) | (a0 << (32 - 22)))) + ((a0 & a1) ^ (a0 & a2) ^ (a1 & a2));
+        uint_fast32_t t1 = a[7] + (((a[4] >> 6) | (a[4] << (32 - 6))) ^ ((a[4] >> 11) | (a[4] << (32 - 11))) ^ ((a[4] >> 25) | (a[4] << (32 - 25)))) + ((a[4] & a[5]) ^ (~a[4] & a[6])) + K[t] + W[t];
+        uint_fast32_t t2 = (((a[0] >> 2) | (a[0] << (32 - 2))) ^ ((a[0] >> 13) | (a[0] << (32 - 13))) ^ ((a[0] >> 22) | (a[0] << (32 - 22)))) + ((a[0] & a[1]) ^ (a[0] & a[2]) ^ (a[1] & a[2]));
 
-        a7 = a6;
-        a6 = a5;
-        a5 = a4;
-        a4 = a3 + t1;
-        a3 = a2;
-        a2 = a1;
-        a1 = a0;
-        a0 = t1 + t2;
+
+        _mm256_storeu_epi32(pa + 1, _mm256_loadu_epi32(pa));
+
+        //  a[7] = a[6];
+         // a[6] = a[5];
+          //a[5] = a[4];
+        a[4] = a[4] + t1;
+        // a[3] = a[2];
+        // a[2] = a[1];
+        // a[1] = a[0];
+        a[0] = t1 + t2;
     }
 
-    rtn[0] = a0+ 0x6a09e667;
-    rtn[1] = a1+ 0xbb67ae85;
-    rtn[2] = a2+ 0x3c6ef372;
-    rtn[3] = a3+ 0xa54ff53a;
-    rtn[4] = a4+ 0x510e527f;
-    rtn[5] = a5+ 0x9b05688c;
-    rtn[6] = a6+ 0x1f83d9ab;
-    rtn[7] = a7+ 0x5be0cd19;
+    rtn[0] = a[7]+ 0x6a09e667;
+    rtn[1] = a[6]+ 0xbb67ae85;
+    rtn[2] = a[5]+ 0x3c6ef372;
+    rtn[3] = a[4]+ 0xa54ff53a;
+    rtn[4] = a[3]+ 0x510e527f;
+    rtn[5] = a[2]+ 0x9b05688c;
+    rtn[6] = a[1]+ 0x1f83d9ab;
+    rtn[7] = a[0]+ 0x5be0cd19;
 
+    free(pa);
     free(_padded);
     free(W);
     return 0;
