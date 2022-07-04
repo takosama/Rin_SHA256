@@ -20,15 +20,15 @@ class Bentimark
         Task.Run(() =>
         {
             Parallel.For(0, 16, i =>
-        {
-            //   SHA256 sha256 = new SHA256();
-            System.Security.Cryptography.SHA256 sha256 = System.Security.Cryptography.SHA256.Create();
+            { 
+         SHA256 sha256 = new SHA256();
+       //     System.Security.Cryptography.SHA256 sha256 = System.Security.Cryptography.SHA256.Create();
 
             byte[] input = Encoding.ASCII.GetBytes( "rintya!!");
 
             while (true)
             {
-                var tmp = sha256.ComputeHash(input);
+                var tmp = sha256.ComputeHash2(input);
                 cnts[i]++;
                 input[0]++;
             }
@@ -71,7 +71,7 @@ namespace Rin
                 var ans=SSHA256.ComputeHash(input);
                 Console.WriteLine("test "+i);
                 var mans = String.Join("", ans.Select(x => x.ToString("x").PadLeft(2, '0')));
-                var rans = RSHA256.ComputeHash(input).ToString();
+                var rans = RSHA256.ComputeHash2(input).ToString();
                 Console.WriteLine( "Microsoft " + mans);
                 Console.WriteLine("Rintya    " + rans);
                 Console.WriteLine();
@@ -203,6 +203,72 @@ namespace Rin
         Vector256<uint> shift0 = Vector256.Create(2, 13, 22, 0, 6, 11, 25, 0).AsUInt32();
         Vector256<uint> shift1 = Vector256.Create(32 - 2, 32 - 13, 32 - 22, 32 - 0, 32 - 6, 32 - 11, 32 - 25, 32 - 0).AsUInt32();
         Vector256<uint> maskSigma01 = Vector256.Create(1, 0, 0, 0, 1, 0, 0, 0).AsUInt32();
+
+    public    struct values
+        {
+            public uint a0 = 0x6a09e667;
+            public uint a1 = 0xbb67ae85;
+            public uint a2 = 0x3c6ef372;
+            public uint a3 = 0xa54ff53a;
+            public uint a4 = 0x510e527f;
+            public uint a5 = 0x9b05688c;
+            public uint a6 = 0x1f83d9ab;
+            public uint a7 = 0x5be0cd19;
+
+            public values()
+            {
+
+            }
+        }
+
+        uint rotr(uint x, int n) => ((x >> n) | (x << (32 - n)));
+        uint shr(uint x, int n) => (x >> n);
+        uint ch(uint x, uint y, uint z) => (x & y) ^ (~x & z);
+        uint maj(uint x, uint y, uint z) => ((x & y) ^ (x & z) ^ (y & z));
+        uint upperSigma0(uint x) => (rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22));
+        uint upperSigma1(uint x) => rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
+        uint lowerSigma0(uint x) => (rotr(x, 7) ^ rotr(x, 18) ^ shr(x, 3));
+        uint lowerSigma1(uint x) => rotr(x, 17) ^ rotr(x, 19) ^ shr(x, 10);
+
+
+        public SHA256 ComputeHash2(byte[] input)
+        {
+            uint* ah = stackalloc uint[8] {   0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+            values* val = (values*)ah;
+     
+            Padding(input);
+            castToUint();
+
+            var W = mapW((uint*)_paded);
+
+            
+            for (int t = 0; t < 64; t++)
+            {
+
+                var ch0 = ch(val->a4, val->a5, val->a6);
+                var maj0 = maj(val->a0, val-> a1, val->a2);
+
+                var t1 = val->a7 + upperSigma1(val->a4) + ch(val->a4, val->a5, val->a6) + K[t] + W[t];
+                var t2 = upperSigma0(val->a0) + maj(val->a0, val->a1, val->a2);
+
+
+                val->a7 = val->a6;
+                val->a6 = val->a5;
+                val->a5 = val->a4;
+                val->a4 = val->a3 + t1;
+                val->a3 = val->a2;
+                val->a2 = val->a1;
+                val->a1 = val->a0;
+                val->a0 = t1 + t2;
+
+                //      Avx2.Store(ah + 1, Avx2.LoadVector256(ah));
+                //    ah[1] = t1 + t2;
+                //  ah[5] = ah[5] + t1;
+            }
+
+            Avx2.Store(Result, Avx2.Add(Avx.LoadVector256(ah ), H));
+            return this;
+        }
 
         public SHA256 ComputeHash(byte[] input)
         {
